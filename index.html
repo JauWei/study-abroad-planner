@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>留學規劃儀表板 · Study Abroad Planner</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.5/dist/cdn.min.js" defer></script>
+<script type="module">
+  import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+  const SUPABASE_URL = 'https://tazzyomgrdwprvdpeuid.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_4PNZ1n8sWhCFUTPu81CEVw_nc6a1St4';
+  window.sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+  window.dispatchEvent(new Event('supabase-ready'));
+</script>
+<style>
+  body { font-family: 'Noto Sans TC', system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .glass { background: rgba(255,255,255,0.72); backdrop-filter: blur(12px); }
+  .gradient-bg {
+    background:
+      radial-gradient(ellipse at top left, rgba(59,130,246,0.18), transparent 55%),
+      radial-gradient(ellipse at bottom right, rgba(16,185,129,0.18), transparent 55%),
+      linear-gradient(180deg,#f1f5f9 0%,#e2e8f0 100%);
+    min-height: 100vh;
+  }
+  .card { transition: transform .15s ease, box-shadow .15s ease; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -10px rgba(0,0,0,.18); }
+  .country-chip { transition: all .15s ease; }
+  .country-chip.active { background: linear-gradient(135deg,#3b82f6,#10b981); color:#fff; border-color: transparent; }
+  .progress-shell { background: #e2e8f0; border-radius: 999px; overflow: hidden; }
+  .progress-fill {
+    background: linear-gradient(90deg,#10b981,#3b82f6);
+    height: 100%; border-radius: 999px;
+    transition: width .4s ease;
+  }
+  .checklist input[type=checkbox] { accent-color: #10b981; width:18px; height:18px; }
+  .checklist li.done span.label { text-decoration: line-through; color:#94a3b8; }
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  .pulse-dot {
+    width:8px;height:8px;border-radius:50%;background:#10b981;
+    box-shadow:0 0 0 0 rgba(16,185,129,.6); animation: pulse 1.6s infinite;
+  }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(16,185,129,.6);} 70%{box-shadow:0 0 0 10px rgba(16,185,129,0);} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0);} }
+  .scrollbar-thin::-webkit-scrollbar { height:8px; width:8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+</style>
+</head>
+<body class="gradient-bg text-slate-800">
+
+<div x-data="planner()" x-init="init()" x-cloak class="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+
+  <!-- ===== Header ===== -->
+  <header class="glass rounded-2xl p-6 shadow-sm border border-white/60 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2 text-xs mb-1" :class="syncTone">
+        <span class="pulse-dot"
+              :style="syncStatus==='error' ? 'background:#f43f5e' : (syncStatus==='offline' ? 'background:#f59e0b' : (syncStatus==='syncing' ? 'background:#3b82f6' : ''))"></span>
+        <span x-text="syncLabel"></span>
+        <span x-show="syncStatus==='error' && syncError" class="text-rose-500 truncate max-w-md"
+              :title="syncError"
+              x-text="' — ' + syncError"></span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">🌏 留學規劃儀表板</h1>
+      <p class="text-sm text-slate-500 mt-1" x-text="state.mode==='uni' ? '大學/研究所版 — 多國比較、費用試算、倒數、行前清單' : '高中版 — 寄宿中學、入學考、監護人、家長財力'"></p>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="text-right">
+        <div class="text-xs text-slate-500">目標出國日</div>
+        <input type="date" x-model="cur.departureDate" @change="save()"
+               class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+      </div>
+      <button @click="resetAll()" title="重置所有資料"
+              class="text-slate-400 hover:text-rose-500 transition text-sm border border-slate-200 rounded-lg px-3 py-2">
+        重置
+      </button>
+    </div>
+  </header>
+
+  <!-- ===== Tabs ===== -->
+  <div class="flex justify-center">
+    <nav class="glass rounded-full p-1.5 border border-white/60 shadow-sm flex gap-1">
+      <button @click="setMode('uni')"
+              class="px-5 py-2 rounded-full text-sm font-semibold transition flex items-center gap-2"
+              :class="state.mode==='uni' ? 'bg-gradient-to-r from-blue-500 to-emerald-500 text-white shadow' : 'text-slate-500 hover:text-slate-800'">
+        🎓 大學 / 研究所版
+      </button>
+      <button @click="setMode('hs')"
+              class="px-5 py-2 rounded-full text-sm font-semibold transition flex items-center gap-2"
+              :class="state.mode==='hs' ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow' : 'text-slate-500 hover:text-slate-800'">
+        🎒 高中版
+      </button>
+    </nav>
+  </div>
+
+  <!-- ===== Countdown ===== -->
+  <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <template x-for="(c, idx) in countdownCells" :key="idx">
+      <div class="card glass rounded-2xl p-5 border border-white/60 text-center">
+        <div class="text-xs text-slate-500" x-text="c.label"></div>
+        <div class="text-3xl sm:text-4xl font-bold mt-1 tracking-tight"
+             :class="c.tone"
+             x-text="c.value"></div>
+        <div class="text-xs text-slate-400 mt-1" x-text="c.hint"></div>
+      </div>
+    </template>
+  </section>
+
+  <!-- ===== Step 1 國家選擇 ===== -->
+  <section class="glass rounded-2xl p-6 border border-white/60 shadow-sm">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-bold">① 選擇你想比較的國家</h2>
+        <p class="text-xs text-slate-500">點擊加入比較區，可同時選多國 (建議 2–4 個)</p>
+      </div>
+      <div class="text-sm text-slate-500">
+        已選擇 <span class="font-bold text-emerald-600" x-text="selectedCountries.length"></span> 國
+      </div>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <template x-for="c in countries" :key="c.id">
+        <button @click="toggleCountry(c.id)"
+                class="country-chip px-3 py-2 rounded-full border border-slate-200 bg-white text-sm flex items-center gap-2"
+                :class="cur.selected.includes(c.id) ? 'active' : ''">
+          <span x-text="c.flag"></span>
+          <span x-text="c.name"></span>
+        </button>
+      </template>
+    </div>
+  </section>
+
+  <!-- ===== Step 2 國家比較 ===== -->
+  <section x-show="selectedCountries.length>0" class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-bold">② 國家比較</h2>
+      <div class="text-xs text-slate-500">滑動橫向卡片以查看更多 ↔️</div>
+    </div>
+    <div class="overflow-x-auto scrollbar-thin pb-2">
+      <div class="flex gap-4" :style="`min-width:${selectedCountries.length*340}px`">
+        <template x-for="c in selectedCountries" :key="state.mode + ':' + c.id">
+          <article class="card glass rounded-2xl border border-white/60 shadow-sm w-[340px] flex-shrink-0 overflow-hidden">
+            <!-- header -->
+            <header class="p-5 border-b border-slate-100">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="text-4xl" x-text="c.flag"></div>
+                  <div>
+                    <h3 class="text-xl font-bold" x-text="c.name"></h3>
+                    <div class="text-xs text-slate-500" x-text="c.nameEn"></div>
+                  </div>
+                </div>
+                <button @click="setTarget(c.id)"
+                        class="text-xs px-2 py-1 rounded-md border"
+                        :class="cur.targetId===c.id ? 'bg-emerald-500 text-white border-emerald-500' : 'border-slate-300 text-slate-500 hover:border-emerald-400 hover:text-emerald-600'">
+                  <span x-text="cur.targetId===c.id ? '★ 主目標' : '設為主目標'"></span>
+                </button>
+              </div>
+            </header>
+
+            <!-- majors -->
+            <div class="p-5 space-y-4 text-sm">
+              <div>
+                <div class="text-xs text-slate-500 mb-1">🎓 優勢科系</div>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="m in c.majors" :key="m">
+                    <span class="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs" x-text="m"></span>
+                  </template>
+                </div>
+              </div>
+
+              <div x-show="c.universities && c.universities.length">
+                <div class="text-xs text-slate-500 mb-1">🏛️ 代表大學</div>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="u in c.universities" :key="u">
+                    <a :href="`https://www.google.com/search?q=${encodeURIComponent(u + ' admissions graduate')}`"
+                       target="_blank" rel="noopener"
+                       class="px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 text-xs hover:bg-violet-100 hover:underline" x-text="u"></a>
+                  </template>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                <div class="bg-emerald-50 rounded-lg p-3">
+                  <div class="text-xs text-emerald-700 font-semibold mb-1">✅ 優點</div>
+                  <ul class="space-y-1 text-xs text-slate-700">
+                    <template x-for="p in c.pros" :key="p"><li>• <span x-text="p"></span></li></template>
+                  </ul>
+                </div>
+                <div class="bg-rose-50 rounded-lg p-3">
+                  <div class="text-xs text-rose-700 font-semibold mb-1">⚠️ 挑戰</div>
+                  <ul class="space-y-1 text-xs text-slate-700">
+                    <template x-for="p in c.cons" :key="p"><li>• <span x-text="p"></span></li></template>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- info grid -->
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="bg-slate-50 rounded p-2">
+                  <div class="text-slate-500">語言要求</div>
+                  <div class="font-semibold text-slate-700" x-text="c.language"></div>
+                </div>
+                <div class="bg-slate-50 rounded p-2">
+                  <div class="text-slate-500">學程長度</div>
+                  <div class="font-semibold text-slate-700" x-text="c.duration"></div>
+                </div>
+                <div class="bg-slate-50 rounded p-2">
+                  <div class="text-slate-500">畢業工簽</div>
+                  <div class="font-semibold text-slate-700" x-text="c.workVisa"></div>
+                </div>
+                <div class="bg-slate-50 rounded p-2">
+                  <div class="text-slate-500">申請季</div>
+                  <div class="font-semibold text-slate-700" x-text="c.applySeason"></div>
+                </div>
+              </div>
+
+              <!-- cost -->
+              <div class="bg-gradient-to-br from-blue-50 to-emerald-50 rounded-lg p-3">
+                <div class="text-xs text-slate-500 mb-1">💰 預估費用 (每年, TWD)</div>
+                <div class="flex justify-between text-xs">
+                  <span>學費</span><span x-text="formatTWD(c.tuition)"></span>
+                </div>
+                <div class="flex justify-between text-xs">
+                  <span>生活費</span><span x-text="formatTWD(c.living)"></span>
+                </div>
+                <div class="flex justify-between text-sm font-bold border-t border-slate-200 mt-2 pt-2">
+                  <span>每年合計</span>
+                  <span class="text-emerald-700" x-text="formatTWD(c.tuition + c.living)"></span>
+                </div>
+                <div class="flex justify-between text-xs mt-1 text-slate-500">
+                  <span x-text="`× ${c.years} 年總計`"></span>
+                  <span class="font-semibold" x-text="formatTWD((c.tuition + c.living) * c.years)"></span>
+                </div>
+              </div>
+
+              <!-- outlook (immigration + jobs/salary or parent escort) -->
+              <details class="bg-amber-50 rounded-lg border border-amber-200">
+                <summary class="px-3 py-2 flex items-center justify-between cursor-pointer text-xs font-semibold text-amber-800 select-none">
+                  <span>📊 就業 & 移民展望 (2026)</span>
+                  <span class="text-amber-700">▾ 點開</span>
+                </summary>
+                <div class="px-3 pb-3 pt-1 space-y-2.5 text-xs">
+
+                  <div x-show="extra(c.id).immigration">
+                    <div class="font-semibold flex items-center gap-2 mb-0.5">
+                      <span>🛂 移民難易度</span>
+                      <span class="text-amber-600 tracking-widest" x-text="renderStars(extra(c.id).immigration && extra(c.id).immigration.score)"></span>
+                    </div>
+                    <div class="text-slate-600 leading-snug" x-text="extra(c.id).immigration && extra(c.id).immigration.path"></div>
+                  </div>
+
+                  <div x-show="extra(c.id).workVisaDetail">
+                    <div class="font-semibold mb-0.5">✈️ 工簽細節 + 中籤率</div>
+                    <div class="text-slate-600 leading-snug" x-text="extra(c.id).workVisaDetail"></div>
+                  </div>
+
+                  <div x-show="extra(c.id).salary">
+                    <div class="font-semibold mb-0.5">💼 新鮮人薪資水平</div>
+                    <div class="text-slate-600 leading-snug" x-text="extra(c.id).salary"></div>
+                  </div>
+
+                  <div x-show="extra(c.id).jobMarket">
+                    <div class="font-semibold flex items-center gap-2 mb-0.5">
+                      <span>🎯 求職難度</span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px]"
+                            :class="((extra(c.id).jobMarket||{}).difficulty||'').includes('高') ? 'bg-rose-100 text-rose-700' : (((extra(c.id).jobMarket||{}).difficulty)==='中' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700')"
+                            x-text="(extra(c.id).jobMarket||{}).difficulty"></span>
+                    </div>
+                    <div class="text-slate-600">
+                      熱門科系：<span x-text="((extra(c.id).jobMarket||{}).hotMajors||[]).join(' · ')"></span>
+                    </div>
+                    <div class="text-slate-500 italic leading-snug" x-text="(extra(c.id).jobMarket||{}).notes"></div>
+                  </div>
+
+                  <div x-show="extra(c.id).parentEscort">
+                    <div class="font-semibold flex items-center gap-2 mb-0.5">
+                      <span>👨‍👩‍👧 家長陪讀</span>
+                      <span class="px-2 py-0.5 rounded-full text-[10px]"
+                            :class="(extra(c.id).parentEscort||{}).allowed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
+                            x-text="(extra(c.id).parentEscort||{}).allowed ? '✅ 可申陪讀簽' : '❌ 無正式途徑'"></span>
+                    </div>
+                    <div class="text-slate-600 leading-snug" x-text="(extra(c.id).parentEscort||{}).detail"></div>
+                  </div>
+
+                </div>
+              </details>
+
+              <!-- news -->
+              <div>
+                <div class="text-xs text-slate-500 mb-1">📰 相關新聞 (Google News)</div>
+                <div class="flex flex-wrap gap-1">
+                  <template x-for="n in c.newsQueries" :key="n">
+                    <a :href="`https://www.google.com/search?tbm=nws&q=${encodeURIComponent(n)}`"
+                       target="_blank" rel="noopener"
+                       class="text-xs px-2 py-1 rounded border border-slate-200 hover:border-blue-400 hover:text-blue-600">
+                      🔗 <span x-text="n"></span>
+                    </a>
+                  </template>
+                </div>
+              </div>
+
+              <!-- notes -->
+              <div>
+                <div class="text-xs text-slate-500 mb-1">📝 我的備註</div>
+                <textarea rows="2"
+                          x-model="cur.notes[c.id]"
+                          @input.debounce.500ms="save()"
+                          placeholder="想申請的學校、聯絡的學長姐、預算想法..."
+                          class="w-full text-xs border border-slate-200 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-emerald-300"></textarea>
+              </div>
+            </div>
+          </article>
+        </template>
+      </div>
+    </div>
+
+    <!-- comparison chart -->
+    <div class="glass rounded-2xl p-5 border border-white/60">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-bold">📊 每年費用比較 (學費 + 生活費, TWD)</h3>
+        <div class="flex items-center gap-3 text-xs text-slate-500">
+          <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-blue-500"></span>學費</span>
+          <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-emerald-500"></span>生活費</span>
+        </div>
+      </div>
+      <div class="space-y-3" x-show="selectedCountries.length>0">
+        <template x-for="c in selectedCountries" :key="c.id">
+          <div>
+            <div class="flex justify-between text-xs mb-1">
+              <span class="font-semibold" x-text="c.flag + ' ' + c.name"></span>
+              <span class="text-slate-600" x-text="formatTWD(c.tuition + c.living) + ' / 年'"></span>
+            </div>
+            <div class="flex h-7 rounded-md overflow-hidden bg-slate-100">
+              <div class="bg-blue-500 flex items-center px-2 text-xs text-white whitespace-nowrap transition-all"
+                   :style="`width:${maxYearly ? (c.tuition / maxYearly) * 100 : 0}%`"
+                   :title="`學費 ${formatTWD(c.tuition)}`">
+                <span x-show="(c.tuition / maxYearly) > 0.18" x-text="formatTWD(c.tuition)"></span>
+              </div>
+              <div class="bg-emerald-500 flex items-center px-2 text-xs text-white whitespace-nowrap transition-all"
+                   :style="`width:${maxYearly ? (c.living / maxYearly) * 100 : 0}%`"
+                   :title="`生活費 ${formatTWD(c.living)}`">
+                <span x-show="(c.living / maxYearly) > 0.18" x-text="formatTWD(c.living)"></span>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Step 3 費用 + 存款進度 ===== -->
+  <section class="glass rounded-2xl p-6 border border-white/60 shadow-sm">
+    <h2 class="text-lg font-bold mb-1">③ 費用試算 & 存款進度</h2>
+    <p class="text-xs text-slate-500 mb-4">主目標國家：<span class="font-semibold" x-text="targetCountry ? targetCountry.flag+' '+targetCountry.name : '尚未設定 (請至比較區點選 ★)'"></span></p>
+
+    <div class="grid md:grid-cols-3 gap-4 mb-5" x-show="targetCountry">
+      <div class="bg-white rounded-xl p-4 border border-slate-100">
+        <div class="text-xs text-slate-500">預估總費用</div>
+        <div class="text-xl font-bold text-slate-800" x-text="formatTWD(totalCost)"></div>
+        <div class="text-xs text-slate-400 mt-1" x-text="targetCountry ? `${formatTWD(targetCountry.tuition+targetCountry.living)} × ${targetCountry.years} 年` : ''"></div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-slate-100">
+        <div class="text-xs text-slate-500">距離出國</div>
+        <div class="text-xl font-bold text-blue-600" x-text="`${monthsLeft} 個月`"></div>
+        <div class="text-xs text-slate-400 mt-1" x-text="`約 ${daysLeft} 天`"></div>
+      </div>
+      <div class="bg-white rounded-xl p-4 border border-slate-100">
+        <div class="text-xs text-slate-500">每月需存</div>
+        <div class="text-xl font-bold text-emerald-600" x-text="formatTWD(monthlyNeed)"></div>
+        <div class="text-xs text-slate-400 mt-1" x-text="`每年約 ${formatTWD(monthlyNeed*12)}`"></div>
+      </div>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div>
+        <label class="text-xs text-slate-500">已存金額 (TWD)</label>
+        <input type="number" min="0" step="10000"
+               x-model.number="cur.savedAmount" @input.debounce.300ms="save()"
+               class="mt-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+
+        <label class="text-xs text-slate-500 mt-3 block">就讀年數 (覆蓋主目標)</label>
+        <input type="number" min="1" max="10" step="0.5"
+               x-model.number="cur.yearsOverride" @input.debounce.300ms="save()"
+               placeholder="留空使用預設"
+               class="mt-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+
+        <label class="text-xs text-slate-500 mt-3 block">每年費用調整 (%, 可填 90 = 拿獎學金 -10%)</label>
+        <input type="number" min="0" max="200" step="5"
+               x-model.number="cur.costRatio" @input.debounce.300ms="save()"
+               class="mt-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <div class="flex justify-between text-xs mb-1">
+            <span class="text-slate-500">完成度</span>
+            <span class="font-bold" x-text="`${progressPct}% · 還差 ${formatTWD(Math.max(totalCost - cur.savedAmount,0))}`"></span>
+          </div>
+          <div class="progress-shell h-3"><div class="progress-fill" :style="`width:${Math.min(progressPct,100)}%`"></div></div>
+        </div>
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+          <div class="font-bold mb-1">💡 試算說明</div>
+          <ul class="space-y-1 list-disc list-inside">
+            <li>費用以 TWD 計，已內建匯率粗估值，實際以當下匯率為準</li>
+            <li>若有獎學金/打工/家庭支援，可在 <b>費用調整</b> 輸入百分比 (如 70 表示成本剩 70%)</li>
+            <li>每月需存金額 = (總費用 - 已存) ÷ 距離出國月數</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Step 4 行前準備 ===== -->
+  <section class="glass rounded-2xl p-6 border border-white/60 shadow-sm">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h2 class="text-lg font-bold">④ 行前準備清單</h2>
+        <p class="text-xs text-slate-500">分類進度條會自動隨勾選更新</p>
+      </div>
+      <div class="text-sm">
+        總進度 <span class="font-bold text-emerald-600" x-text="checklistOverall+'%'"></span>
+      </div>
+    </div>
+    <div class="grid md:grid-cols-2 gap-4 checklist">
+      <template x-for="cat in checklist" :key="cat.key">
+        <details class="bg-white rounded-xl border border-slate-100 p-4" open>
+          <summary class="flex items-center justify-between">
+            <div class="flex items-center gap-2 font-semibold">
+              <span x-text="cat.icon"></span>
+              <span x-text="cat.title"></span>
+              <span class="text-xs text-slate-400" x-text="`${doneCount(cat)}/${cat.items.length}`"></span>
+            </div>
+            <div class="w-24 progress-shell h-2">
+              <div class="progress-fill" :style="`width:${catPct(cat)}%`"></div>
+            </div>
+          </summary>
+          <ul class="mt-3 space-y-2 text-sm">
+            <template x-for="item in cat.items" :key="item.id">
+              <li class="flex items-start gap-2" :class="cur.checklist[item.id] ? 'done' : ''">
+                <input type="checkbox" :id="item.id"
+                       :checked="cur.checklist[item.id]"
+                       @change="cur.checklist[item.id]=$event.target.checked; save()" />
+                <label :for="item.id" class="flex-1 cursor-pointer">
+                  <span class="label" x-text="item.label"></span>
+                  <span x-show="item.hint" class="block text-xs text-slate-400" x-text="item.hint"></span>
+                </label>
+              </li>
+            </template>
+          </ul>
+        </details>
+      </template>
+    </div>
+  </section>
+
+  <!-- ===== Step 5 申請時程表 ===== -->
+  <section class="glass rounded-2xl p-6 border border-white/60 shadow-sm">
+    <h2 class="text-lg font-bold mb-1">⑤ 通用申請時程 (倒推自出國日)</h2>
+    <p class="text-xs text-slate-500 mb-4">以多數歐美國家秋季入學為基準，實際依各校 deadline 微調</p>
+    <ol class="relative border-l border-slate-200 ml-3 space-y-4">
+      <template x-for="(t,i) in timeline" :key="i">
+        <li class="ml-6">
+          <span class="absolute -left-2 flex items-center justify-center w-4 h-4 rounded-full"
+                :class="t.passed ? 'bg-rose-400' : (t.current ? 'bg-emerald-500' : 'bg-blue-400')"></span>
+          <div class="flex flex-wrap items-baseline gap-2">
+            <h3 class="font-semibold" x-text="t.title"></h3>
+            <span class="text-xs text-slate-500" x-text="t.dateLabel"></span>
+            <span x-show="t.current" class="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">目前階段</span>
+            <span x-show="t.passed" class="text-xs px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full">已過</span>
+          </div>
+          <p class="text-sm text-slate-600 mt-1" x-text="t.detail"></p>
+        </li>
+      </template>
+    </ol>
+  </section>
+
+  <footer class="text-center text-xs text-slate-400 py-4">
+    💾 所有資料儲存於本機 localStorage · 換瀏覽器/清除快取會消失，重要資料請另外備份
+  </footer>
+</div>
+
+<script>
+function planner() {
+  return {
+    uniCountries: [
+      {
+        id:'us', name:'美國', nameEn:'United States', flag:'🇺🇸',
+        majors:['電腦科學/AI','MBA 商管','金融工程','醫學','機械工程'],
+        pros:['名校與研究資源最豐富','畢業薪資高','OPT 提供合法工作期','創新與創業文化'],
+        cons:['學費昂貴，總費用最高','H1B 工簽抽籤不確定','醫療費用高','治安城市差異大'],
+        language:'TOEFL 90+/IELTS 7+', duration:'碩 1.5–2 年', workVisa:'OPT 1–3 年 + H1B', applySeason:'12–2 月截止',
+        tuition:1500000, living:700000, years:2,
+        universities:['MIT','Stanford','Harvard','UC Berkeley','Carnegie Mellon','Columbia'],
+        newsQueries:['美國 留學 2026','F-1 簽證','OPT H1B 政策']
+      },
+      {
+        id:'uk', name:'英國', nameEn:'United Kingdom', flag:'🇬🇧',
+        majors:['金融','法律','藝術設計','傳媒','商管'],
+        pros:['碩士 1 年快速畢業','名校歷史悠久','英語環境純正','歐洲交通樞紐'],
+        cons:['倫敦生活費高','PSW 簽證競爭激烈','天氣陰冷'],
+        language:'IELTS 6.5–7', duration:'碩 1 年', workVisa:'Graduate Route 2 年', applySeason:'全年滾動 (建議 11 月前)',
+        tuition:1200000, living:600000, years:1,
+        universities:['Oxford','Cambridge','Imperial College London','UCL','LSE','King\'s College'],
+        newsQueries:['英國 留學','Graduate Route 簽證','UCAS 申請']
+      },
+      {
+        id:'ca', name:'加拿大', nameEn:'Canada', flag:'🇨🇦',
+        majors:['工程','電腦科學','商管','醫學','自然資源'],
+        pros:['移民友善 PR 路徑明確','學費較美國低','安全多元','PGWP 開放工簽 1–3 年'],
+        cons:['冬季嚴寒','大城市租屋難','學校熱門系所競爭激烈'],
+        language:'IELTS 6.5+/TOEFL 80+', duration:'碩 1–2 年', workVisa:'PGWP 1–3 年', applySeason:'1–3 月',
+        tuition:900000, living:500000, years:2,
+        universities:['U of Toronto','UBC','McGill','Waterloo','Western','McMaster'],
+        newsQueries:['加拿大 留學','PGWP 工簽','Express Entry']
+      },
+      {
+        id:'au', name:'澳洲', nameEn:'Australia', flag:'🇦🇺',
+        majors:['醫學護理','工程','觀光餐旅','會計','資訊管理'],
+        pros:['生活品質高','偏遠地區可加分 PR','打工度假銜接','南半球氣候舒適'],
+        cons:['學費生活費皆高','距離台灣較遠','部分簽證政策變動快'],
+        language:'IELTS 6.5+', duration:'碩 1.5–2 年', workVisa:'485 簽證 2–4 年', applySeason:'滾動',
+        tuition:1100000, living:550000, years:2,
+        universities:['U of Melbourne','U of Sydney','ANU','UNSW','Monash','U of Queensland'],
+        newsQueries:['澳洲 留學 簽證','485 visa','澳洲 PR']
+      },
+      {
+        id:'jp', name:'日本', nameEn:'Japan', flag:'🇯🇵',
+        majors:['機械/汽車工程','動漫設計','機器人','日本語教育','醫學'],
+        pros:['距離近文化親近','學費合理 (國立尤佳)','獎學金管道多 (MEXT/JASSO)'],
+        cons:['日文門檻 (N2/N1)','加班文化重','地震天災'],
+        language:'JLPT N2–N1 或 TOEFL 80', duration:'修士 2 年', workVisa:'就職活動 1 年', applySeason:'4 月/10 月入學',
+        tuition:350000, living:350000, years:2,
+        universities:['東京大學','京都大學','東京工業大學','大阪大學','早稻田','慶應義塾'],
+        newsQueries:['日本 留學','MEXT 獎學金','JLPT 申請']
+      },
+      {
+        id:'de', name:'德國', nameEn:'Germany', flag:'🇩🇪',
+        majors:['機械工程','汽車工業','物理化學','商管','再生能源'],
+        pros:['公立大學免學費','工程強國就業好','歐盟內遷徙自由','學期費低廉'],
+        cons:['德文門檻 (B2/C1)','官僚程序繁瑣','氣候陰冷'],
+        language:'TestDaF/DSH B2–C1 或 IELTS 6.5', duration:'碩 2 年', workVisa:'找工作簽證 18 個月', applySeason:'7–1 月',
+        tuition:50000, living:400000, years:2,
+        universities:['TU München','LMU München','RWTH Aachen','TU Berlin','Heidelberg','KIT'],
+        newsQueries:['德國 留學','TestDaF','德國 工作簽證']
+      },
+      {
+        id:'nl', name:'荷蘭', nameEn:'Netherlands', flag:'🇳🇱',
+        majors:['工程','商管','設計','農業科技','國際關係'],
+        pros:['英語授課多','地理位置優越','自行車文化','薪資水準高'],
+        cons:['非歐盟學費較高','住房極度緊張','天氣多雨'],
+        language:'IELTS 6.5', duration:'碩 1–2 年', workVisa:'Orientation Year 1 年', applySeason:'1–5 月',
+        tuition:700000, living:450000, years:2,
+        universities:['TU Delft','U of Amsterdam','Utrecht','Erasmus Rotterdam','Eindhoven','Wageningen'],
+        newsQueries:['荷蘭 留學','Studielink','荷蘭 工作簽證']
+      },
+      {
+        id:'fr', name:'法國', nameEn:'France', flag:'🇫🇷',
+        majors:['藝術','時尚','餐飲料理','商管 (HEC/INSEAD)','葡萄酒釀造'],
+        pros:['公立大學學費低','文化藝術氛圍濃','歐洲生活品質高','英語 Grandes Écoles 豐富'],
+        cons:['法文需求 (部分課程)','罷工與行政效率慢','巴黎住房貴'],
+        language:'DELF B2 或 TOEFL 80', duration:'碩 2 年', workVisa:'APS 1 年', applySeason:'3–5 月',
+        tuition:200000, living:450000, years:2,
+        universities:['HEC Paris','INSEAD','École Polytechnique','Sciences Po','ESCP','Sorbonne'],
+        newsQueries:['法國 留學','Campus France','APS 簽證']
+      },
+      {
+        id:'nz', name:'紐西蘭', nameEn:'New Zealand', flag:'🇳🇿',
+        majors:['觀光餐旅','農業','獸醫','影視動畫','護理'],
+        pros:['自然風光優美','治安良好','PR 相對容易','英語環境友善'],
+        cons:['距離遙遠','產業選擇較少','部分學位選擇有限'],
+        language:'IELTS 6.5', duration:'碩 1–2 年', workVisa:'開放式工簽 1–3 年', applySeason:'滾動',
+        tuition:850000, living:500000, years:2,
+        universities:['U of Auckland','U of Otago','Victoria Wellington','Canterbury','Massey'],
+        newsQueries:['紐西蘭 留學','紐西蘭 工作簽證','Skilled Migrant']
+      },
+      {
+        id:'sg', name:'新加坡', nameEn:'Singapore', flag:'🇸🇬',
+        majors:['金融','商管','生物科技','AI/工程','公共政策'],
+        pros:['亞洲樞紐英語環境','治安頂尖','就業機會佳','華語使用方便'],
+        cons:['生活費高','競爭激烈','空間有限'],
+        language:'IELTS 6.5+/TOEFL 90', duration:'碩 1–2 年', workVisa:'EP / Tech.Pass', applySeason:'1–3 月',
+        tuition:800000, living:600000, years:1.5,
+        universities:['NUS','NTU','SMU','SUTD'],
+        newsQueries:['新加坡 留學','Employment Pass','NUS NTU 申請']
+      },
+      {
+        id:'kr', name:'韓國', nameEn:'South Korea', flag:'🇰🇷',
+        majors:['半導體','設計','傳媒/K-Content','商管','生技'],
+        pros:['距離近文化親近','半導體產業強','GKS 等獎學金多','英文授課漸多'],
+        cons:['韓文門檻 (TOPIK 4-6)','學業競爭壓力大','加班文化'],
+        language:'TOPIK 4–6 或 TOEFL 80+', duration:'碩 2 年', workVisa:'D-10 求職 6+6 個月', applySeason:'9 月入學 (3-5 月申請)',
+        tuition:350000, living:400000, years:2,
+        universities:['Seoul National (SNU)','KAIST','POSTECH','Yonsei','Korea U','Sungkyunkwan'],
+        newsQueries:['韓國 留學','GKS 政府獎學金','TOPIK 考試']
+      },
+      {
+        id:'ch', name:'瑞士', nameEn:'Switzerland', flag:'🇨🇭',
+        majors:['銀行金融','餐旅管理 (EHL)','生技製藥','機械工程','物理'],
+        pros:['公立學費極低','薪資冠歐洲','ETH/EPFL 世界頂尖','治安與風景'],
+        cons:['全球生活費最高之一','德/法/義文 + 英文門檻','租屋極難'],
+        language:'IELTS 6.5+ 或當地語 B2', duration:'碩 1.5–2 年', workVisa:'找工作簽證 6 個月', applySeason:'12–4 月',
+        tuition:100000, living:900000, years:2,
+        universities:['ETH Zürich','EPFL','U of Zürich','U of St.Gallen','U of Geneva','EHL'],
+        newsQueries:['瑞士 留學','ETH 申請','瑞士 工作簽證']
+      },
+      {
+        id:'se', name:'瑞典', nameEn:'Sweden', flag:'🇸🇪',
+        majors:['工程','設計 (Konstfack)','永續/綠能','資訊科學','社會科學'],
+        pros:['英語授課多 (碩士)','創新環境 (Spotify/IKEA)','北歐生活品質','工作生活平衡'],
+        cons:['非歐盟學費高','冬季漫長黑暗','酒精/外食昂貴'],
+        language:'IELTS 6.5', duration:'碩 1–2 年', workVisa:'找工作簽證 1 年', applySeason:'秋季入學 1/15 截止',
+        tuition:450000, living:450000, years:2,
+        universities:['KTH','Lund U','Uppsala','Chalmers','Stockholm U','KI'],
+        newsQueries:['瑞典 留學','University Admissions Sweden','瑞典 工作許可']
+      },
+      {
+        id:'es', name:'西班牙', nameEn:'Spain', flag:'🇪🇸',
+        majors:['商管 (IE/IESE/ESADE)','建築','藝術','觀光','西語教學'],
+        pros:['公立學費合理','地中海氣候','申根區優勢','生活費低於西歐'],
+        cons:['西文門檻 (英文授課集中商學院)','青年失業率高','官僚效率慢'],
+        language:'IELTS 6.5 或 DELE B2', duration:'碩 1–2 年', workVisa:'找工作簽證 1 年', applySeason:'3–6 月',
+        tuition:250000, living:400000, years:1.5,
+        universities:['IE Business','IESE','ESADE','U of Barcelona','Complutense Madrid','Pompeu Fabra'],
+        newsQueries:['西班牙 留學','DELE 西文檢定','西班牙 工作許可']
+      },
+      {
+        id:'hk', name:'香港', nameEn:'Hong Kong', flag:'🇭🇰',
+        majors:['金融','商管','法律','傳媒','生技'],
+        pros:['距離近免簽方便','亞洲金融中心','QS 排名集中前 100','英語授課普遍','IANG 工簽寬鬆'],
+        cons:['生活費高','住房空間小','政治環境變動'],
+        language:'IELTS 6.5+ 或 TOEFL 80+', duration:'碩 1–2 年', workVisa:'IANG 12 個月 (可續至 PR)', applySeason:'11–3 月',
+        tuition:700000, living:500000, years:1,
+        universities:['HKU','HKUST','CUHK','PolyU','CityU','HKBU'],
+        newsQueries:['香港 留學','IANG 簽證','JUPAS 副學士']
+      }
+    ],
+
+    hsCountries: [
+      {
+        id:'us', name:'美國', nameEn:'United States', flag:'🇺🇸',
+        majors:['頂尖私立寄宿中學','AP / IB 課程','Honors Program','藤校預備'],
+        pros:['頂尖大學銜接 (藤校預備)','個人化導師制','課外活動豐富 (校隊/社團)','英語環境純正'],
+        cons:['頂尖寄宿學費高 (USD 70-90k/年)','需 SSAT/TOEFL Junior','文化衝擊與想家','監護人安排'],
+        language:'TOEFL Jr 800+ / SSAT 1800+', duration:'9-12 年級 (4 年)', workVisa:'F-1 學生簽',
+        applySeason:'前一年 12-2 月 (次年 9 月入學)',
+        tuition:1800000, living:600000, years:4,
+        universities:['Phillips Exeter','Phillips Andover','Choate Rosemary','Deerfield','Lawrenceville','Hotchkiss','Groton','St. Paul\'s'],
+        newsQueries:['美國 高中 留學','SSAT 考試','美國 寄宿中學']
+      },
+      {
+        id:'uk', name:'英國', nameEn:'United Kingdom', flag:'🇬🇧',
+        majors:['A-Level','IB','GCSE','Sixth Form'],
+        pros:['頂尖傳統寄宿學校 (Eton/Harrow)','A-Level 全球認可','校友網絡深厚','Oxbridge 銜接率高'],
+        cons:['頂級學校 £40-50k/年','Tier 4 Child 簽證','天氣陰冷','飲食適應'],
+        language:'UKiset / IELTS 5.5+', duration:'13-18 歲均可入學', workVisa:'Child Student Visa',
+        applySeason:'前一年 1-9 月 (Pre-test 13+/16+)',
+        tuition:1800000, living:500000, years:2,
+        universities:['Eton College','Harrow School','Westminster','Winchester','Charterhouse','Cheltenham Ladies','Brighton College','Marlborough'],
+        newsQueries:['英國 寄宿中學','UKiset','A-Level 申請']
+      },
+      {
+        id:'ca', name:'加拿大', nameEn:'Canada', flag:'🇨🇦',
+        majors:['公立中學 (價格實惠)','私立寄宿中學','BC/Ontario 學制','雙語環境 (英/法)'],
+        pros:['公立學費低 (CAD 13-17k/年)','安全多元','加國大學銜接順','寄宿家庭普及'],
+        cons:['寒冬','部分省份監護人要求','私立熱門校競爭'],
+        language:'IELTS 5.5 / Duolingo / 學校測驗', duration:'9-12 年級', workVisa:'學生簽 SDS',
+        applySeason:'彈性 (1月、9月入學)',
+        tuition:600000, living:400000, years:4,
+        universities:['Ridley College','Upper Canada College','Appleby College','Branksome Hall','St. Andrew\'s College','Lakefield','Shawnigan Lake'],
+        newsQueries:['加拿大 高中 留學','加拿大 公立中學','寄宿家庭 加拿大']
+      },
+      {
+        id:'au', name:'澳洲', nameEn:'Australia', flag:'🇦🇺',
+        majors:['IB','VCE','HSC','私立寄宿中學'],
+        pros:['英語環境純正','銜接 ATAR 升大學','多元文化','治安良好'],
+        cons:['距離遠','監護人 (CAAW) 要求嚴','學費中高','時差大'],
+        language:'AEAS / IELTS 5.5', duration:'Year 7-12', workVisa:'學生簽 Subclass 500',
+        applySeason:'滾動 (1 月主入學)',
+        tuition:900000, living:450000, years:4,
+        universities:['Geelong Grammar','Scotch College','Melbourne Grammar','Sydney Grammar','Cranbrook','MLC','Wesley College'],
+        newsQueries:['澳洲 高中 留學','AEAS 考試','CAAW 監護人']
+      },
+      {
+        id:'nz', name:'紐西蘭', nameEn:'New Zealand', flag:'🇳🇿',
+        majors:['NCEA','Cambridge IGCSE','寄宿家庭','私立中學'],
+        pros:['治安好適合年幼學生','學費較英美低','英語環境','自然風景優'],
+        cons:['偏遠選擇較少','部分學校國際生比例低','距離遠'],
+        language:'IELTS 5.0+ 或入學評估', duration:'Year 9-13', workVisa:'學生簽',
+        applySeason:'1/4/7/10 月 4 學期入學',
+        tuition:600000, living:400000, years:4,
+        universities:['King\'s College','Auckland Grammar','Christ\'s College','St Cuthbert\'s','Diocesan','Saint Kentigern','Scots College'],
+        newsQueries:['紐西蘭 高中 留學','NCEA 學制','紐西蘭 寄宿家庭']
+      },
+      {
+        id:'ch', name:'瑞士', nameEn:'Switzerland', flag:'🇨🇭',
+        majors:['IB','瑞士 Matura','法/德/英 三語','貴族傳統寄宿'],
+        pros:['世界頂級寄宿中學 (Le Rosey)','多語環境 (英/法/德)','治安頂尖','人脈圈精英'],
+        cons:['學費全球最貴 (CHF 80-120k)','小班高度精英取向','語言要求多元'],
+        language:'IELTS / 學校面試', duration:'Year 9-12 (IB)', workVisa:'學生簽',
+        applySeason:'滾動 (建議提前 1 年)',
+        tuition:3500000, living:800000, years:4,
+        universities:['Le Rosey','Institut auf dem Rosenberg','Aiglon College','Collège du Léman','TASIS','Beau Soleil','Brillantmont'],
+        newsQueries:['瑞士 寄宿中學','Le Rosey','貴族學校 瑞士']
+      },
+      {
+        id:'sg', name:'新加坡', nameEn:'Singapore', flag:'🇸🇬',
+        majors:['IB','IGCSE','國際學校 (UWC/SAS)','華英雙語'],
+        pros:['距離近','亞洲跳板','華語+英語雙環境','治安頂尖','飲食適應'],
+        cons:['學費 SGD 30-50k/年','住宿選項少','學業競爭激烈'],
+        language:'AEIS / 學校測驗', duration:'中學 4 年 + JC 2 年', workVisa:'學生簽 STP',
+        applySeason:'滾動 (1 月主入學)',
+        tuition:800000, living:600000, years:4,
+        universities:['UWCSEA','Singapore American School','Tanglin Trust','ACS International','Hwa Chong','Raffles','SJI International'],
+        newsQueries:['新加坡 國際學校','AEIS 考試','UWCSEA 申請']
+      },
+      {
+        id:'jp', name:'日本', nameEn:'Japan', flag:'🇯🇵',
+        majors:['普通科 / SGH','インターナショナル','日語沉浸','AFS 交換'],
+        pros:['距離近文化親近','學費合理','日語/英語雙提升','飲食安全'],
+        cons:['日文門檻 (N3+)','社團與校規嚴','學業壓力'],
+        language:'JLPT N3-N2 / EJU', duration:'高校 3 年', workVisa:'學生簽',
+        applySeason:'4 月入學 (前年 9-12 月申請)',
+        tuition:250000, living:350000, years:3,
+        universities:['国際基督教大学高校 (ICU)','立命館宇治','早稲田渋谷','茗溪学園','アオバジャパン','聖心インター'],
+        newsQueries:['日本 高校 留學','AFS 交換','EJU 考試']
+      },
+      {
+        id:'de', name:'德國', nameEn:'Germany', flag:'🇩🇪',
+        majors:['Gymnasium 公立中學','Abitur 文憑','PASCH 合作學校','歐洲跳板'],
+        pros:['公立中學免學費','歐洲銜接好 (Abitur 全歐認可)','文化深厚','安全'],
+        cons:['德文門檻高 (B1-B2 入學)','行政手續繁複','監護人要求','寒冬'],
+        language:'DSD I/II 或 Goethe B1-B2', duration:'Klasse 10-12 (Abitur)', workVisa:'學生簽',
+        applySeason:'8 月開學',
+        tuition:50000, living:350000, years:3,
+        universities:['PASCH 合作高中','Berlin Brandenburg International','Phorms','Schule Schloss Salem','Louisenlund','Heimschule Lender'],
+        newsQueries:['德國 高中 留學','PASCH 學校','DSD 德文檢定']
+      },
+      {
+        id:'fr', name:'法國', nameEn:'France', flag:'🇫🇷',
+        majors:['法國 Baccalauréat','IB / OIB 國際課程','藝術音樂專科','英法雙語國際學校'],
+        pros:['公立中學免學費','藝術文化氛圍濃厚','歐洲核心交通樞紐','英美法名校跳板'],
+        cons:['法文門檻 (B1+)','行政程序緩慢','巴黎住房昂貴','監護人安排'],
+        language:'DELF B1-B2 / 學校面試 (IB 課程接受英文)', duration:'Collège 4 年 / Lycée 3 年', workVisa:'學生簽',
+        applySeason:'9 月開學 (前年 1-5 月申請)',
+        tuition:800000, living:450000, years:3,
+        universities:['Lycée Louis-le-Grand','Lycée Henri-IV','École Jeannine Manuel','EIB Paris','Lycée International de Saint-Germain','Lycée Janson de Sailly'],
+        newsQueries:['法國 高中 留學','DELF B2','EIB 國際學校','OIB 國際文憑']
+      }
+    ],
+
+    state: {
+      mode: 'uni',
+      uni: {
+        selected: ['us','uk','jp'],
+        targetId: 'us',
+        departureDate: '',
+        savedAmount: 0,
+        yearsOverride: null,
+        costRatio: 100,
+        notes: {},
+        checklist: {}
+      },
+      hs: {
+        selected: ['us','uk','ca'],
+        targetId: 'us',
+        departureDate: '',
+        savedAmount: 0,
+        yearsOverride: null,
+        costRatio: 100,
+        notes: {},
+        checklist: {}
+      }
+    },
+
+    uniChecklist: [
+      { key:'docs', icon:'📑', title:'文件準備', items:[
+        { id:'doc_passport', label:'護照 (有效期 6 個月以上)', hint:'到期前先換新，避免影響簽證' },
+        { id:'doc_id', label:'身分證、戶籍謄本' },
+        { id:'doc_birth', label:'出生證明 (英文版)' },
+        { id:'doc_recommend', label:'推薦信 2–3 封' },
+        { id:'doc_sop', label:'讀書計畫 / SOP / Personal Statement' },
+        { id:'doc_cv', label:'英文 CV / Resume' },
+        { id:'doc_portfolio', label:'作品集 (藝術/設計/建築需要)' },
+        { id:'doc_finance', label:'財力證明 (帳戶餘額/存款證明)' },
+      ]},
+      { key:'edu', icon:'🎓', title:'學業 & 考試', items:[
+        { id:'edu_transcript', label:'歷年成績單 (中英文版)' },
+        { id:'edu_diploma', label:'畢業證書 (中英文版)' },
+        { id:'edu_lang', label:'語言檢定 (TOEFL/IELTS/JLPT/DELF)' },
+        { id:'edu_gre', label:'GRE / GMAT (依科系需要)' },
+        { id:'edu_apply', label:'學校線上申請 + 申請費繳交' },
+        { id:'edu_offer', label:'拿到 Offer / 確認入學' },
+      ]},
+      { key:'visa', icon:'✈️', title:'簽證辦理', items:[
+        { id:'visa_form', label:'學生簽證申請表' },
+        { id:'visa_fee', label:'簽證費 + SEVIS/IHS 等附加費' },
+        { id:'visa_doc', label:'I-20 / CAS / COE / Zulassung' },
+        { id:'visa_interview', label:'簽證面試預約 & 通過' },
+      ]},
+      { key:'health', icon:'💊', title:'健康準備', items:[
+        { id:'h_checkup', label:'出國體檢 (依國家要求)' },
+        { id:'h_vaccine', label:'疫苗接種 (MMR/破傷風/COVID 等)' },
+        { id:'h_insurance', label:'學生保險 / 海外醫療險' },
+        { id:'h_meds', label:'處方藥 + 英文病歷/處方箋' },
+        { id:'h_dental', label:'看牙 (出國前清潔/補牙)' },
+      ]},
+      { key:'money', icon:'💰', title:'財務準備', items:[
+        { id:'m_bank', label:'開海外可用帳戶 (玉山/中信/Wise)' },
+        { id:'m_card', label:'國際信用卡 + 副卡' },
+        { id:'m_cash', label:'換少量外幣現金 + 旅支' },
+        { id:'m_remit', label:'學費匯款 / Flywire 帳號' },
+        { id:'m_tax', label:'台灣稅務 (戶籍/勞健保)' },
+      ]},
+      { key:'life', icon:'🏠', title:'生活準備', items:[
+        { id:'l_house', label:'住宿 (學校宿舍 / 找室友 / Airbnb 過渡)' },
+        { id:'l_flight', label:'機票 (建議起飛前 2–3 個月訂)' },
+        { id:'l_luggage', label:'行李打包 + 託運額度確認' },
+        { id:'l_adapter', label:'轉接頭 + 變壓器' },
+        { id:'l_sim', label:'當地 SIM 卡 / eSIM 預先設定' },
+        { id:'l_drive', label:'國際駕照 (需要時)' },
+      ]},
+      { key:'digital', icon:'📱', title:'數位 & 帳號', items:[
+        { id:'d_email', label:'學校 Email + Microsoft/Google 帳號' },
+        { id:'d_backup', label:'重要文件雲端備份 (Drive/iCloud)' },
+        { id:'d_pwd', label:'密碼管理工具 (1Password/Bitwarden)' },
+        { id:'d_vpn', label:'VPN (回看台灣串流/銀行)' },
+        { id:'d_msg', label:'家人聯絡群組 + 緊急聯絡人' },
+      ]},
+    ],
+
+    hsChecklist: [
+      { key:'docs', icon:'📑', title:'文件準備', items:[
+        { id:'h_doc_passport', label:'護照 (有效期 6 個月以上)' },
+        { id:'h_doc_birth', label:'出生證明 (英文版)' },
+        { id:'h_doc_household', label:'戶籍謄本 + 家長身分證' },
+        { id:'h_doc_transcript3', label:'近 3 年成績單 (中英譯)' },
+        { id:'h_doc_recommend', label:'老師推薦信 2 封 (導師 / 英文老師)' },
+        { id:'h_doc_essay', label:'學生自傳 / 動機信 (英文)' },
+        { id:'h_doc_award', label:'競賽 / 活動 / 才藝證明 (英譯)' },
+        { id:'h_doc_finance', label:'家長財力證明 (存款 / 稅單)' },
+        { id:'h_doc_consent', label:'家長同意書 / 監護人聲明' },
+      ]},
+      { key:'edu', icon:'🎓', title:'入學考 & 面試', items:[
+        { id:'h_edu_lang', label:'英文檢定 (TOEFL Jr / IELTS / Duolingo)' },
+        { id:'h_edu_entrance', label:'入學考 (SSAT / ISEE / UKiset / AEAS / AEIS)' },
+        { id:'h_edu_interview', label:'學校面試 (Skype/Zoom 或現場)' },
+        { id:'h_edu_visit', label:'校訪 (有條件可安排)' },
+        { id:'h_edu_offer', label:'Offer 確認 + 註冊金' },
+      ]},
+      { key:'visa', icon:'✈️', title:'簽證辦理', items:[
+        { id:'h_visa_form', label:'學生簽證申請 (F-1 / Tier 4 Child / 500)' },
+        { id:'h_visa_doc', label:'I-20 / CAS / CoE 學校文件' },
+        { id:'h_visa_fee', label:'簽證費 + SEVIS / IHS' },
+        { id:'h_visa_interview', label:'簽證面試預約 + 通過' },
+      ]},
+      { key:'health', icon:'💊', title:'健康準備', items:[
+        { id:'h_h_checkup', label:'學校指定體檢 (依表單)' },
+        { id:'h_h_vaccine', label:'疫苗 (MMR / Tdap / Meningitis / 結核 PPD)' },
+        { id:'h_h_dental', label:'牙齒矯正 / 健檢 / 補牙' },
+        { id:'h_h_insurance', label:'國際學生醫療保險' },
+        { id:'h_h_meds', label:'慢性病藥 + 英文病歷' },
+        { id:'h_h_eye', label:'視力檢查 + 備用眼鏡' },
+      ]},
+      { key:'money', icon:'💰', title:'家長財務安排', items:[
+        { id:'h_m_proof', label:'家長存款證明 (依國家門檻)' },
+        { id:'h_m_remit', label:'學費匯款帳號 (Flywire/PayMyTuition)' },
+        { id:'h_m_card', label:'國際信用卡附卡 (家長持主卡)' },
+        { id:'h_m_pocket', label:'每月零用金安排 + 限額' },
+        { id:'h_m_emergency', label:'緊急基金 (約 USD 5000)' },
+      ]},
+      { key:'safety', icon:'🛡️', title:'安全 & 監護人', items:[
+        { id:'h_s_guardian', label:'當地監護人 (姓名/電話/地址)' },
+        { id:'h_s_houseparent', label:'學校 Houseparent / 宿舍長聯絡' },
+        { id:'h_s_emergency', label:'緊急聯絡卡 (隨身攜帶)' },
+        { id:'h_s_medical_authz', label:'醫療授權書 (家長簽署)' },
+        { id:'h_s_call_plan', label:'家長定期通話計畫 (每週時段)' },
+      ]},
+      { key:'life', icon:'🏠', title:'住宿 & 生活', items:[
+        { id:'h_l_dorm', label:'宿舍 / 寄宿家庭 確認' },
+        { id:'h_l_uniform', label:'校服採購 (依學校規定)' },
+        { id:'h_l_bedding', label:'棉被 / 床單組 / 浴巾' },
+        { id:'h_l_flight', label:'機票 (建議家長陪同首次)' },
+        { id:'h_l_luggage', label:'行李 (制服/文具/季節衣物)' },
+        { id:'h_l_sim', label:'當地 SIM / eSIM 預先設定' },
+        { id:'h_l_adapter', label:'轉接頭 + 變壓器' },
+      ]},
+      { key:'digital', icon:'📱', title:'數位 & 帳號', items:[
+        { id:'h_d_email', label:'學校 Email + 入學系統' },
+        { id:'h_d_backup', label:'重要文件雲端備份 (Drive/iCloud)' },
+        { id:'h_d_msg', label:'家庭群組 + 視訊軟體 (LINE/WhatsApp)' },
+        { id:'h_d_findmy', label:'裝置定位 (Find My / 家庭共享)' },
+        { id:'h_d_scan', label:'護照/簽證/文件影本掃描備份' },
+      ]},
+    ],
+
+    uniExtras: {
+      us: {
+        immigration: { score:2, path:'F-1 → OPT → H1B 抽籤 (~25%) → EB-2/3 排期 (台籍 1–3 年)' },
+        workVisaDetail: 'OPT 12 個月 (STEM +24 個月)；H1B 年抽 8.5 萬名額 + 碩+ 豁免 2 萬，中籤率約 25%',
+        salary: '新鮮人 USD 70–110k；科技/金融 USD 130k+；全國中位數 USD 60k',
+        jobMarket: { difficulty:'中', hotMajors:['CS/AI','資料科學','金融','醫療','工程'], notes:'需 sponsorship 職位有限，外籍生求職競爭激烈' }
+      },
+      uk: {
+        immigration: { score:3, path:'Graduate Route 2–3 年 → Skilled Worker (£38.7k+) → ILR 5 年' },
+        workVisaDetail: 'Graduate Route 自動核發 2 年 (博士 3 年)，無雇主擔保門檻；Skilled Worker 2024 起薪資門檻提高',
+        salary: '新鮮人 £28–40k；倫敦 £35–50k；科技 £45–60k',
+        jobMarket: { difficulty:'中', hotMajors:['金融','法律','資料科學','AI','醫療'], notes:'倫敦機會集中；非技術職難達薪資門檻' }
+      },
+      ca: {
+        immigration: { score:5, path:'PGWP → Express Entry (加國學經歷加分) → PR 約 1–3 年' },
+        workVisaDetail: 'PGWP 1–3 年自動核發 (依學程長度)；2024 起學簽收緊但 PR 路徑仍順',
+        salary: '新鮮人 CAD 55–75k；科技 CAD 80–100k',
+        jobMarket: { difficulty:'中', hotMajors:['工程','CS','醫護','資料分析','Trades'], notes:'PGWP→PR 路徑成熟，溫哥華/多倫多競爭激烈' }
+      },
+      au: {
+        immigration: { score:4, path:'485 簽證 2–4 年 → 雇主擔保/技術移民 SkillSelect → PR' },
+        workVisaDetail: '485 Temporary Graduate 2–4 年 (依學位)；偏遠地區職業可加分加速 PR',
+        salary: '新鮮人 AUD 65–80k；護理/工程 AUD 75–90k',
+        jobMarket: { difficulty:'中', hotMajors:['護理','工程','會計','資訊','Trades'], notes:'醫護缺工；2024 起簽證政策略有收緊' }
+      },
+      jp: {
+        immigration: { score:3, path:'就職活動 1 年 → 就業簽 → 永住 10 年 (高度人才 1–3 年)' },
+        workVisaDetail: '特定活動 (求職) 1 年；「技術・人文知識・国際業務」簽證新卒易取得',
+        salary: '新鮮人 ¥240–300 萬/年；科技 ¥400 萬+',
+        jobMarket: { difficulty:'中', hotMajors:['半導體','汽車','機器人','動漫','日文教育'], notes:'需日文 N2+；新卒一次採用文化；薪資相對歐美低' }
+      },
+      de: {
+        immigration: { score:4, path:'求職簽 18 個月 → 工作簽/Blue Card (€45.3k+，IT/工程 €41.7k) → PR 21–33 個月' },
+        workVisaDetail: 'Jobseeker 簽 18 個月；Blue Card 21 個月可申 PR (德文 B1)',
+        salary: '新鮮人 €45–55k；科技 €55–70k',
+        jobMarket: { difficulty:'中', hotMajors:['機械工程','汽車','IT','再生能源','化工'], notes:'工程系極缺工；非英語職位需德文 B1+' }
+      },
+      nl: {
+        immigration: { score:4, path:'Orientation Year 1 年 → Highly Skilled Migrant (€41k+, <30 歲 €30k+) → PR 5 年' },
+        workVisaDetail: 'Orientation Year 1 年；HSM 雇主擔保制，無抽籤',
+        salary: '新鮮人 €36–48k；科技 €45–60k',
+        jobMarket: { difficulty:'中', hotMajors:['工程','資料分析','商管','農業科技','AI'], notes:'英語職位多但住房極緊張' }
+      },
+      fr: {
+        immigration: { score:3, path:'APS 1 年 → 工作簽 → Talent Passport (薪資門檻) → PR 5 年' },
+        workVisaDetail: 'APS Recherche d\'Emploi 1 年；Talent Passport 4 年快速通道',
+        salary: '新鮮人 €30–40k；商學院 €45–55k',
+        jobMarket: { difficulty:'中高', hotMajors:['商管','藝術設計','餐飲','時尚','航太'], notes:'非法文職位有限，實習轉正不易' }
+      },
+      nz: {
+        immigration: { score:5, path:'Post-study Work Visa 1–3 年 → Skilled Migrant Category → PR 1–3 年' },
+        workVisaDetail: 'PSWV 1–3 年；Green List 職業可加速 PR',
+        salary: '新鮮人 NZD 55–70k',
+        jobMarket: { difficulty:'中', hotMajors:['護理','工程','農業','IT','Trades'], notes:'Green List 移民快速但城市選擇少' }
+      },
+      sg: {
+        immigration: { score:2, path:'EP/S Pass → PR 申請 (薪資+居留)；PR 通過率約 30–40%' },
+        workVisaDetail: 'EP 月薪 SGD 5,600+；Tech.Pass 限頂尖人才；2024 EP 門檻再提高',
+        salary: '新鮮人 SGD 4–5.5k/月；科技/金融 SGD 6–8k',
+        jobMarket: { difficulty:'中高', hotMajors:['金融','AI/科技','生技','供應鏈','顧問'], notes:'EP 門檻提高擠壓外籍生；本地優先政策' }
+      },
+      kr: {
+        immigration: { score:2, path:'D-10 求職 6+6 個月 → E-7 就業簽 → F-2 (積分) → F-5 PR' },
+        workVisaDetail: 'D-10 共 12 個月；E-7 需專業科系對應職位',
+        salary: '新鮮人 ₩30–40M/年；大企業 ₩45M+',
+        jobMarket: { difficulty:'高', hotMajors:['半導體','K-Content','設計','化妝品','貿易'], notes:'需 TOPIK 4+；本地新卒競爭極激烈' }
+      },
+      ch: {
+        immigration: { score:1, path:'找工作 6 個月 → 雇主擔保 (非歐盟配額嚴) → B 居留 → C 永居 10 年' },
+        workVisaDetail: '找工作簽 6 個月；非歐盟工簽配額制 (每年僅約 8,500 名)',
+        salary: '新鮮人 CHF 70–95k；銀行/科技 CHF 90–120k',
+        jobMarket: { difficulty:'高', hotMajors:['銀行金融','製藥','精密機械','AI','餐旅'], notes:'薪資全球頂尖；非歐盟配額嚴格，需當地語言或頂尖英語職位' }
+      },
+      se: {
+        immigration: { score:3, path:'找工作簽 1 年 → 工作簽 → PR (持工作簽 48 個月)' },
+        workVisaDetail: 'Residence Permit for Job Seekers 1 年；工作簽 2 年可續',
+        salary: '新鮮人 SEK 30–40k/月；科技 SEK 38–50k',
+        jobMarket: { difficulty:'中', hotMajors:['工程','永續/綠能','IT','設計','生技'], notes:'英語職位多但稅高薪資中等' }
+      },
+      es: {
+        immigration: { score:3, path:'求職簽 1 年 → 工作簽 → PR 5 年；Startup/Digital Nomad 新通道' },
+        workVisaDetail: 'Buscar Empleo 1 年；2023 起 Digital Nomad 簽證',
+        salary: '新鮮人 €22–30k；馬德里/巴塞 €28–35k',
+        jobMarket: { difficulty:'高', hotMajors:['商管','觀光','AI','再生能源','建築'], notes:'青年失業率高；西歐中薪資偏低' }
+      },
+      hk: {
+        immigration: { score:4, path:'IANG 12 個月 → 工作簽續至 7 年 → 永居；2024 高才通計畫加速' },
+        workVisaDetail: 'IANG 自動核發 12 個月，無薪資門檻，續簽寬鬆',
+        salary: '新鮮人 HKD 18–25k/月；金融/科技 HKD 25–35k',
+        jobMarket: { difficulty:'中', hotMajors:['金融','法律','AI','生技','傳媒'], notes:'IANG 對畢業生極友善，但住房成本高' }
+      }
+    },
+
+    hsExtras: {
+      us: {
+        immigration: { score:2, path:'F-1 → 大學 → OPT → H1B 抽籤 → EB；路徑長且競爭' },
+        parentEscort: { allowed:false, detail:'F-1 不附帶陪讀；家長可申 B-2 短期觀光簽探訪' }
+      },
+      uk: {
+        immigration: { score:3, path:'高中 → 大學 → Graduate Route → Skilled Worker → ILR 5 年' },
+        parentEscort: { allowed:true, detail:'Parent of a Child Student Visa：子女 <12 歲讀獨立學校時，家長可申 2 年陪讀' }
+      },
+      ca: {
+        immigration: { score:5, path:'高中 → 大學 → PGWP → Express Entry，PR 路徑明確' },
+        parentEscort: { allowed:true, detail:'未成年學生家長可申 Visitor Record 陪讀 (酌情核發，須財力證明)' }
+      },
+      au: {
+        immigration: { score:4, path:'高中 → 大學 → 485 → 雇主擔保/技術移民 → PR' },
+        parentEscort: { allowed:true, detail:'Subclass 590 監護人簽證 (子女 <18 歲)，可在澳期間陪讀' }
+      },
+      nz: {
+        immigration: { score:5, path:'高中 → 大學 → 開放工簽 → Skilled Migrant，移民友善' },
+        parentEscort: { allowed:true, detail:'Guardian of a Student Visitor Visa (子女 <17 歲) — 限制條件多' }
+      },
+      ch: {
+        immigration: { score:1, path:'B 居留 → C 永居 10 年；非歐盟配額嚴格' },
+        parentEscort: { allowed:false, detail:'貴族寄宿學校提供 24/7 Houseparent；家長無正式陪讀簽證路徑' }
+      },
+      sg: {
+        immigration: { score:2, path:'PR 申請門檻高 (薪資+居留)；國民身分極難取得' },
+        parentEscort: { allowed:true, detail:'Long Term Visit Pass — 母親陪讀，但僅限政府/補助學校 (UWC 等國際學校不適用)' }
+      },
+      jp: {
+        immigration: { score:3, path:'高校 → 大學 → 就業簽 → 永住 10 年' },
+        parentEscort: { allowed:false, detail:'高校生家長僅可申短期觀光簽探訪 (90 天內)' }
+      },
+      de: {
+        immigration: { score:4, path:'高中 → 大學 → 工作簽/Blue Card → PR 21–33 個月' },
+        parentEscort: { allowed:false, detail:'Gymnasium 學生家長無陪讀簽證；通常需透過監護人公司安排' }
+      },
+      fr: {
+        immigration: { score:3, path:'高中 → 大學 → APS → 工作簽 → PR 5 年' },
+        parentEscort: { allowed:false, detail:'高中生家長無陪讀簽證；可申短期觀光簽探訪 (90 天)' }
+      }
+    },
+
+    extra(id) {
+      const dict = this.state.mode === 'hs' ? this.hsExtras : this.uniExtras;
+      return dict[id] || {};
+    },
+    renderStars(n) {
+      n = Math.max(0, Math.min(5, Number(n) || 0));
+      return '★'.repeat(n) + '☆'.repeat(5-n);
+    },
+
+    get cur() { return this.state.mode === 'hs' ? this.state.hs : this.state.uni; },
+    get countries() { return this.state.mode === 'hs' ? this.hsCountries : this.uniCountries; },
+    get checklist() { return this.state.mode === 'hs' ? this.hsChecklist : this.uniChecklist; },
+
+    setMode(m) {
+      this.state.mode = m;
+      this.save();
+    },
+
+    syncStatus: 'idle',     // 'idle'|'syncing'|'synced'|'error'|'offline'
+    syncError: '',
+    cloudReady: false,
+    _cloudTimer: null,
+
+    async init() {
+      this.loadLocal();
+      this.fillDefaultDates();
+      await this.waitForSupabase();
+      await this.loadCloud();
+    },
+
+    get maxYearly() {
+      const list = this.selectedCountries;
+      if (!list.length) return 1;
+      return Math.max(...list.map(c => c.tuition + c.living));
+    },
+
+    loadLocal() {
+      try {
+        const raw = localStorage.getItem('study-abroad-planner');
+        if (!raw) return;
+        const saved = JSON.parse(raw);
+        if (saved.selected !== undefined && !saved.uni && !saved.hs) {
+          Object.assign(this.state.uni, saved);
+        } else {
+          if (saved.mode) this.state.mode = saved.mode;
+          if (saved.uni) Object.assign(this.state.uni, saved.uni);
+          if (saved.hs)  Object.assign(this.state.hs,  saved.hs);
+        }
+      } catch(e) { console.warn('local load failed', e); }
+    },
+
+    fillDefaultDates() {
+      for (const m of ['uni','hs']) {
+        if (!this.state[m].departureDate) {
+          const d = new Date();
+          d.setFullYear(d.getFullYear() + (m==='hs' ? 1 : 2));
+          d.setMonth(8); d.setDate(1);
+          this.state[m].departureDate = d.toISOString().slice(0,10);
+        }
+      }
+    },
+
+    waitForSupabase() {
+      if (window.sb) { this.cloudReady = true; return Promise.resolve(); }
+      return new Promise(resolve => {
+        const done = ()=> { this.cloudReady = !!window.sb; resolve(); };
+        window.addEventListener('supabase-ready', done, { once: true });
+        setTimeout(done, 5000);
+      });
+    },
+
+    async loadCloud() {
+      if (!window.sb) { this.syncStatus = 'offline'; return; }
+      this.syncStatus = 'syncing';
+      try {
+        const { data, error } = await window.sb
+          .from('study_abroad_state')
+          .select('state, updated_at')
+          .eq('id', 'default')
+          .maybeSingle();
+        if (error) throw error;
+        if (data && data.state) {
+          const cloud = data.state;
+          if (cloud.mode) this.state.mode = cloud.mode;
+          if (cloud.uni) Object.assign(this.state.uni, cloud.uni);
+          if (cloud.hs)  Object.assign(this.state.hs,  cloud.hs);
+          localStorage.setItem('study-abroad-planner', JSON.stringify(this.state));
+        }
+        this.syncStatus = 'synced';
+        this.syncError = '';
+      } catch(e) {
+        console.warn('cloud load failed', e);
+        this.syncStatus = 'error';
+        this.syncError = (e && (e.message || e.hint || JSON.stringify(e))) || String(e);
+      }
+    },
+
+    async saveCloud() {
+      if (!window.sb) return;
+      this.syncStatus = 'syncing';
+      try {
+        const payload = JSON.parse(JSON.stringify(this.state));
+        const { error } = await window.sb
+          .from('study_abroad_state')
+          .upsert({ id: 'default', state: payload, updated_at: new Date().toISOString() });
+        if (error) throw error;
+        this.syncStatus = 'synced';
+        this.syncError = '';
+      } catch(e) {
+        console.warn('cloud save failed', e);
+        this.syncStatus = 'error';
+        this.syncError = (e && (e.message || e.hint || JSON.stringify(e))) || String(e);
+      }
+    },
+
+    save() {
+      try { localStorage.setItem('study-abroad-planner', JSON.stringify(this.state)); }
+      catch(e) { console.warn('local save failed', e); }
+      clearTimeout(this._cloudTimer);
+      this._cloudTimer = setTimeout(()=> this.saveCloud(), 1000);
+    },
+
+    get syncLabel() {
+      return ({
+        idle:    '初始化中…',
+        syncing: '同步中…',
+        synced:  '雲端已同步',
+        error:   '雲端同步失敗 (僅本機)',
+        offline: '離線模式 (僅本機)',
+      })[this.syncStatus] || this.syncStatus;
+    },
+    get syncTone() {
+      return ({
+        idle:    'text-slate-500',
+        syncing: 'text-blue-600',
+        synced:  'text-emerald-700',
+        error:   'text-rose-600',
+        offline: 'text-amber-600',
+      })[this.syncStatus] || 'text-slate-500';
+    },
+
+    resetAll() {
+      if (!confirm('確定清空所有資料？此動作無法復原 (本機 + 雲端)。')) return;
+      localStorage.removeItem('study-abroad-planner');
+      if (window.sb) {
+        window.sb.from('study_abroad_state').delete().eq('id','default').then(()=> location.reload());
+      } else { location.reload(); }
+    },
+
+    toggleCountry(id) {
+      const i = this.cur.selected.indexOf(id);
+      if (i>=0) this.cur.selected.splice(i,1);
+      else this.cur.selected.push(id);
+      if (!this.cur.selected.includes(this.cur.targetId)) {
+        this.cur.targetId = this.cur.selected[0] || null;
+      }
+      this.save();
+    },
+
+    setTarget(id) {
+      this.cur.targetId = id;
+      this.save();
+    },
+
+    get selectedCountries() {
+      return this.cur.selected
+        .map(id => this.countries.find(c=>c.id===id))
+        .filter(Boolean);
+    },
+
+    get targetCountry() {
+      return this.countries.find(c=>c.id===this.cur.targetId) || null;
+    },
+
+    get totalCost() {
+      if (!this.targetCountry) return 0;
+      const yrs = this.cur.yearsOverride || this.targetCountry.years;
+      const ratio = (this.cur.costRatio || 100) / 100;
+      return Math.round((this.targetCountry.tuition + this.targetCountry.living) * yrs * ratio);
+    },
+
+    get daysLeft() {
+      if (!this.cur.departureDate) return 0;
+      const target = new Date(this.cur.departureDate);
+      const now = new Date();
+      const ms = target - now;
+      return Math.max(Math.ceil(ms / (1000*60*60*24)), 0);
+    },
+
+    get monthsLeft() {
+      return Math.max(Math.round(this.daysLeft / 30.44), 0);
+    },
+
+    get monthlyNeed() {
+      const remain = Math.max(this.totalCost - (this.cur.savedAmount||0), 0);
+      const months = Math.max(this.monthsLeft, 1);
+      return Math.round(remain / months);
+    },
+
+    get progressPct() {
+      if (!this.totalCost) return 0;
+      return Math.round(((this.cur.savedAmount||0) / this.totalCost) * 100);
+    },
+
+    get countdownCells() {
+      return [
+        { label:'倒數天數', value: this.daysLeft.toLocaleString(), hint:'距離目標出國日', tone:'text-blue-600' },
+        { label:'倒數月份', value: this.monthsLeft, hint:'準備時間', tone:'text-indigo-600' },
+        { label:'存款完成度', value: this.progressPct+'%', hint:'依主目標國家試算', tone:'text-emerald-600' },
+        { label:'每月需存', value: this.formatTWD(this.monthlyNeed), hint:'達成目標所需', tone:'text-rose-500' },
+      ];
+    },
+
+    formatTWD(n) {
+      if (n == null || isNaN(n)) return 'NT$ 0';
+      if (n >= 10000) return 'NT$ ' + (n/10000).toFixed(n>=1000000?0:1) + ' 萬';
+      return 'NT$ ' + n.toLocaleString();
+    },
+
+    doneCount(cat) {
+      return cat.items.filter(i => this.cur.checklist[i.id]).length;
+    },
+    catPct(cat) {
+      return Math.round(this.doneCount(cat) / cat.items.length * 100);
+    },
+    get checklistOverall() {
+      const total = this.checklist.reduce((s,c)=>s+c.items.length,0);
+      const done = this.checklist.reduce((s,c)=>s+this.doneCount(c),0);
+      return total ? Math.round(done/total*100) : 0;
+    },
+
+    get timeline() {
+      const dep = this.cur.departureDate ? new Date(this.cur.departureDate) : null;
+      const now = new Date();
+      const offsetMonths = (m) => {
+        if (!dep) return null;
+        const d = new Date(dep);
+        d.setMonth(d.getMonth() - m);
+        return d;
+      };
+      const fmt = d => d ? `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}` : '—';
+      const buildItem = (title, monthsBefore, detail) => {
+        const d = offsetMonths(monthsBefore);
+        const next = offsetMonths(monthsBefore - 3);
+        const passed = d && d < now && next && next < now;
+        const current = d && d <= now && (!next || next >= now);
+        return { title, dateLabel: d ? `約 ${fmt(d)} (出國前 ${monthsBefore} 個月)` : '—', detail, passed, current };
+      };
+      const uniItems = [
+        ['決定國家 & 科系', 24, '研究 2–4 個目標國家、確認預算與職涯方向。'],
+        ['語言考試準備', 18, 'TOEFL/IELTS/JLPT 第一次衝刺，留 1–2 次重考機會。'],
+        ['GRE/GMAT 與作品集', 14, '依科系需要安排，作品集可同步整理。'],
+        ['選校 & 推薦信邀約', 12, '列出 6–10 所夢幻/穩健/保底校，向教授提早預約推薦信。'],
+        ['文件準備 & 申請送出', 9, 'SOP、CV、成績單翻譯、線上系統送件 + 申請費。'],
+        ['收到 Offer & 決定學校', 5, '比較多校 offer，繳交訂金確認入學。'],
+        ['簽證 & 財力證明', 4, '收齊財力證明、I-20/CAS、預約簽證面試。'],
+        ['機票、住宿、保險', 2, '訂機票 (旺季提早)、確認宿舍/租屋、買學生保險。'],
+        ['打包 & 出發', 0, '行李 23+23kg、轉接頭、英文病歷、緊急聯絡卡。'],
+      ];
+      const hsItems = [
+        ['決定國家 & 學校類型', 18, '公立 vs. 私立寄宿評估，選 5–10 所目標校，與家長對齊預算。'],
+        ['英文 & 入學考準備', 15, 'TOEFL Junior / SSAT / UKiset / AEAS 第一輪衝刺。'],
+        ['校訪 & 面試準備', 12, '安排校訪 (有條件)、模擬面試、整理作品/才藝資料。'],
+        ['申請文件送出', 10, '推薦信、自傳、家長財力證明、申請費繳交。'],
+        ['Offer & 監護人安排', 6, '比較 offer、繳註冊金、確認當地監護人 / Houseparent。'],
+        ['簽證辦理', 4, 'F-1 / Tier 4 Child / 500 簽證面試。'],
+        ['體檢、疫苗、保險', 3, '依學校健康表體檢、補疫苗、買學生保險。'],
+        ['採購制服 & 生活用品', 2, '校服、棉被組、文具、轉接頭、SIM 卡。'],
+        ['機票 & 出發', 0, '建議家長首次陪同；行李依學校 packing list。'],
+      ];
+      const items = this.state.mode === 'hs' ? hsItems : uniItems;
+      return items.map(([title, m, detail]) => buildItem(title, m, detail));
+    }
+  }
+}
+</script>
+</body>
+</html>
