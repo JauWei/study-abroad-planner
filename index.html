@@ -247,6 +247,9 @@
                       <span class="text-amber-600 tracking-widest" x-text="renderStars(extra(c.id).immigration && extra(c.id).immigration.score)"></span>
                     </div>
                     <div class="text-slate-600 leading-snug" x-text="extra(c.id).immigration && extra(c.id).immigration.path"></div>
+                    <div x-show="investmentInfo[c.id]" class="mt-1.5 pl-2 border-l-2 border-amber-400 text-slate-600 leading-snug">
+                      <span class="font-semibold text-amber-800">💰 投資移民 (2026)：</span><span x-text="investmentInfo[c.id]"></span>
+                    </div>
                   </div>
 
                   <div x-show="extra(c.id).workVisaDetail">
@@ -1081,6 +1084,25 @@ function planner() {
     renderStars(n) {
       n = Math.max(0, Math.min(5, Number(n) || 0));
       return '★'.repeat(n) + '☆'.repeat(5-n);
+    },
+
+    investmentInfo: {
+      us: 'EB-5：USD 800k (TEA 區) 或 1.05M (非 TEA)，需創造 10 個全職工作 → 2 年條件式綠卡 → 5 年 PR',
+      uk: '⚠️ Tier 1 Investor 2022 已停辦；現走 Innovator Founder (£50k+ 創新事業 + 政府背書機構推薦)',
+      ca: '聯邦投資移民已停；Quebec Investor 暫停；Start-up Visa：加幣 100k+ + 天使投資人/育成中心背書；BC PNP 創業類別仍可走',
+      au: '⚠️ Significant Investor Visa (SIV / 188C) 2024 停辦；新 National Innovation Visa (858) 走頂尖人才路線，不是純資金',
+      jp: '経営・管理簽證：日幣 500 萬資本 + 實體辦公室 + 事業計畫，滿 10 年永住 (高度經營者 5 年)',
+      de: '自雇簽 §21 AufenthG：無固定金額 (實務常 €250k+) + 商業計畫 + 對地方經濟有利證明',
+      nl: 'Wealthy Foreign Investor：€1,250,000 投資荷蘭創新基金 (門檻極高、實際申請通過案極少)；多走 Start-up visa 路線',
+      fr: 'Talent Passport Investisseur：€300,000+ 投資 + 30+ 工作；或 Entrepreneur Talent Passport (€30k+ 自主創業)',
+      nz: 'Active Investor Plus (2025 改版)：NZD 5M (Growth Category) 或 NZD 15M (Balanced) 投資 3-4 年',
+      sg: 'Global Investor Programme (GIP)：SGD 10M+ 自家企業擴充、SGD 25M+ 家族辦公室、或 SGD 25M+ 投資 GIP 基金 → 直接 PR',
+      kr: 'F-2-8：韓幣 5 億+ (約 USD 380k) 投資指定區域不動產 (濟州、平昌等) → 持 5 年後可申 F-5',
+      ch: '一次性課稅 (Pauschalbesteuerung)：高淨值人士每年 CHF 250k+ 應稅基數 (依州別異)；無固定投資門檻',
+      se: '無正式投資移民管道；可走 Self-employment Permit (證明商業可行 + 自給自足收入)',
+      es: '⚠️ Golden Visa (€500k 不動產) 2025/04 終止；現走 Entrepreneur Visa (創新事業) 或 Digital Nomad (年收入 €31k+，遠距工作)',
+      hk: 'Capital Investment Entrant Scheme (CIES，2024/03 重啟)：HKD 30M+ 投資指定資產 (含部分住宅 HKD 10M) → 居留簽 → 7 年永居',
+      pt: 'Golden Visa：不動產選項 2023/10 移除；現需 €500k 基金投資、€250k 文化捐贈、€500k 研發、或創造 10 個工作 → 5 年入籍'
     },
 
     get cur() { return this.state.mode === 'hs' ? this.state.hs : this.state.uni; },
