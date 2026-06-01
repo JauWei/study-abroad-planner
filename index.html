@@ -216,7 +216,10 @@
 
               <!-- cost -->
               <div class="bg-gradient-to-br from-blue-50 to-emerald-50 rounded-lg p-3">
-                <div class="text-xs text-slate-500 mb-1">💰 預估費用 (每年, TWD)</div>
+                <div class="text-xs text-slate-500 mb-1 flex items-baseline justify-between gap-2">
+                  <span>💰 預估費用 (每年, TWD)</span>
+                  <span class="text-[10px] text-slate-400 italic">國際生估算</span>
+                </div>
                 <div class="flex justify-between text-xs">
                   <span>學費</span><span x-text="formatTWD(c.tuition)"></span>
                 </div>
@@ -319,13 +322,16 @@
 
     <!-- comparison chart -->
     <div class="glass rounded-2xl p-5 border border-white/60">
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
         <h3 class="text-sm font-bold">📊 每年費用比較 (學費 + 生活費, TWD)</h3>
         <div class="flex items-center gap-3 text-xs text-slate-500">
           <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-blue-500"></span>學費</span>
           <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-emerald-500"></span>生活費</span>
         </div>
       </div>
+      <p class="text-xs text-slate-400 italic mb-3">
+        💡 學費以「<b>國際學生身分</b>」(非歐盟/非本地) 估算；德國公立、瑞士 ETH/EPFL、法國公立非歐盟低廉，新加坡為 MOE Grant 後 (需服務 3 年)
+      </p>
       <div class="space-y-3" x-show="selectedCountries.length>0">
         <template x-for="c in selectedCountries" :key="c.id">
           <div>
