@@ -631,6 +631,16 @@ function planner() {
         tuition:800000, living:600000, years:1,
         universities:['HKU','HKUST','CUHK','PolyU','CityU','HKBU'],
         newsQueries:['香港 留學','IANG 簽證','JUPAS 副學士']
+      },
+      {
+        id:'pt', name:'葡萄牙', nameEn:'Portugal', flag:'🇵🇹',
+        majors:['商管 (NOVA SBE / Católica)','觀光餐旅','建築設計','海洋科學','資訊'],
+        pros:['公立大學學費歐洲低','生活成本低','英語碩士課程多','氣候溫和安全','歐盟通行'],
+        cons:['葡語為日常語言','本地薪資西歐偏低','本地就業機會有限','2024 移民法改革進行中'],
+        language:'IELTS 6.5 (英文授課) 或葡語 B1', duration:'碩 1.5–2 年', workVisa:'求職簽 120 天可延 60 天 (Procura Emprego)', applySeason:'4–7 月 (秋季入學)',
+        tuition:150000, living:400000, years:2,
+        universities:['Universidade de Lisboa','Universidade do Porto','NOVA Lisbon','Universidade de Coimbra','ISCTE Business School','Católica Lisbon SBE'],
+        newsQueries:['葡萄牙 留學','NOVA SBE 申請','葡萄牙 D4 學生簽']
       }
     ],
 
@@ -744,6 +754,28 @@ function planner() {
         tuition:800000, living:550000, years:3,
         universities:['Lycée Louis-le-Grand','Lycée Henri-IV','École Jeannine Manuel','EIB Paris','Lycée International de Saint-Germain','Lycée Janson de Sailly'],
         newsQueries:['法國 高中 留學','DELF B2','EIB 國際學校','OIB 國際文憑']
+      },
+      {
+        id:'pt', name:'葡萄牙', nameEn:'Portugal', flag:'🇵🇹',
+        majors:['IB / 葡語 12º ano','英語雙語國際學校','藝術音樂專科'],
+        pros:['公立中學免學費 (含外籍)','生活費低','安全 + 氣候溫和','D7/D2 簽證可全家遷居','歐盟通行'],
+        cons:['葡語門檻 (公立)','國際學校學費 €15-25k','高中體系小、學校選擇有限'],
+        language:'IB 接受英文；葡語 B1+ (公立)', duration:'高中 3 年 (10º-12º ano)', workVisa:'學生居留',
+        applySeason:'9 月開學 (前年 1-6 月申請)',
+        tuition:700000, living:400000, years:3,
+        universities:['St. Julian\'s School (Carcavelos)','CAISL (Carlucci American School)','Oporto British School','St. Dominic\'s International School','United Lisbon International School'],
+        newsQueries:['葡萄牙 國際中學','IB 葡萄牙','D7 家庭簽證']
+      },
+      {
+        id:'es', name:'西班牙', nameEn:'Spain', flag:'🇪🇸',
+        majors:['IB / Bachillerato','美式 / 英式國際學校','藝術音樂專科','足球青訓'],
+        pros:['公立中學免學費','國際學校選擇豐富','地中海氣候','足球/藝術專案多','歐盟通行'],
+        cons:['西文門檻 (公立 / Bachillerato)','國際學校學費 €15-25k','學校作息晚 (9-17 時)'],
+        language:'IB/英式接受英文；西文 B1+ (Bachillerato)', duration:'ESO 4 年 + Bachillerato 2 年 (12-18 歲)', workVisa:'學生居留',
+        applySeason:'9 月開學 (前年 1-5 月申請)',
+        tuition:700000, living:480000, years:2,
+        universities:['American School of Madrid','British Council School (Madrid)','King\'s College Madrid','ICS Barcelona','Hastings School','St. George\'s British International'],
+        newsQueries:['西班牙 國際中學','Bachillerato 申請','西班牙 NLV 簽證']
       }
     ],
 
@@ -982,6 +1014,12 @@ function planner() {
         workVisaDetail: 'IANG 自動核發 12 個月，無薪資門檻，續簽寬鬆',
         salary: '新鮮人 HKD 18–25k/月；金融/科技 HKD 25–35k',
         jobMarket: { difficulty:'中', hotMajors:['金融','法律','AI','生技','傳媒'], notes:'IANG 對畢業生極友善，但住房成本高' }
+      },
+      pt: {
+        immigration: { score:3, path:'D4 學生簽 → Procura Emprego 求職簽 → 工作簽 → 入籍 5 年；2024 起移民改革持續中' },
+        workVisaDetail: '求職簽 Procura de Trabalho 120 天 + 可延 60 天；Tech Visa 對 IT 人才有快速通道',
+        salary: '新鮮人 €18–28k；科技/金融 €28–40k；NOVA SBE 商學院起薪較高',
+        jobMarket: { difficulty:'中高', hotMajors:['商管','觀光餐旅','建築','資訊','海洋'], notes:'NOVA/Católica 商學院畢業就業強；外籍生靠英語職位或科技業，本地薪資西歐偏低' }
       }
     },
 
@@ -1025,6 +1063,14 @@ function planner() {
       fr: {
         immigration: { score:3, path:'高中 → 大學 → APS → 工作簽 → PR 5 年' },
         parentEscort: { allowed:false, detail:'高中生家長無陪讀簽證；可申短期觀光簽探訪 (90 天)' }
+      },
+      pt: {
+        immigration: { score:3, path:'高中 → 大學 → 求職簽 → 工作簽 → 入籍 5 年；家庭可走 D7/D2' },
+        parentEscort: { allowed:true, detail:'D7 (被動收入) 或 D2 (創業) 簽證允許家庭遷居陪讀；月被動收入需 €870+ (依家庭成員比例提高)' }
+      },
+      es: {
+        immigration: { score:3, path:'高中 → 大學 → 求職簽 → 工作簽 → PR 5 年；家庭可走 NLV/Digital Nomad 簽證' },
+        parentEscort: { allowed:true, detail:'Non-Lucrative Visa (NLV) 被動收入簽證允許家庭遷居；月被動收入需 €2,400+，無工作權' }
       }
     },
 
